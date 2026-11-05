@@ -5,6 +5,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
+const PRODUCTS_FILE = path.join(__dirname, 'products.json');
 
 // Middleware
 app.use(express.json());
@@ -12,6 +13,9 @@ app.use(express.json());
 // Initialize data file if it doesn't exist
 if (!fs.existsSync(DATA_FILE)) {
   fs.writeFileSync(DATA_FILE, JSON.stringify([], null, 2));
+}
+if (!fs.existsSync(PRODUCTS_FILE)) {
+  fs.writeFileSync(PRODUCTS_FILE, JSON.stringify([], null, 2));
 }
 
 // POST API - Add new person
@@ -191,6 +195,184 @@ app.delete('/api/users/:id', (req, res) => {
   }
 });
 
+// POST API - Add a new product
+app.post('/api/products', (req, res) => {
+  try {
+    const { name, price, quantity } = req.body || {};
+    if (typeof name !== 'string' || !name.trim() || price === undefined || quantity === undefined) {
+      return res.status(400).json({
+        error: 'Missing required fields: name, price, quantity'
+      });
+    }
+
+    const numericPrice = Number(price);
+    const numericQuantity = Number(quantity);
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      return res.status(400).json({ error: 'Price must be a non-negative number' });
+    }
+    if (!Number.isInteger(numericQuantity) || numericQuantity < 0) {
+      return res.status(400).json({ error: 'Quantity must be a non-negative integer' });
+    }
+
+    const products = JSON.parse(fs.readFileSync(PRODUCTS_FILE, 'utf8'));
+    const newProduct = {
+      id: products.reduce((max, product) => Math.max(max, product.id), 0) + 1,
+      name: name.trim(),
+      price: numericPrice,
+      quantity: numericQuantity,
+      createdAt: new Date().toISOString()
+    };
+
+    products.push(newProduct);
+    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(products, null, 2));
+
+    res.status(201).json({
+      message: 'Product added successfully',
+      data: newProduct
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to save product data' });
+  }
+});
+
+// GET API - Retrieve all products
+app.get('/api/products', (req, res) => {
+  try {
+    const products = JSON.parse(fs.readFileSync(PRODUCTS_FILE, 'utf8'));
+    res.status(200).json({
+      message: 'Products retrieved successfully',
+      count: products.length,
+      data: products
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to read product data' });
+  }
+});
+
+// GET API - Retrieve product IDs and details
+app.get('/api/products/ids', (req, res) => {
+  try {
+    const products = JSON.parse(fs.readFileSync(PRODUCTS_FILE, 'utf8'));
+    const productDetails = products.map(({ id, name, price, quantity }) => ({
+      id,
+      name,
+      price,
+      quantity
+    }));
+
+    res.status(200).json({
+      message: 'Product IDs retrieved successfully',
+      count: productDetails.length,
+      data: productDetails
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to read product data' });
+  }
+});
+
+// GET API - Retrieve product details by ID (must stay after /api/products/ids)
+app.get('/api/products/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'ID must be an integer' });
+    }
+
+    const products = JSON.parse(fs.readFileSync(PRODUCTS_FILE, 'utf8'));
+    const product = products.find((item) => item.id === id);
+    if (!product) {
+      return res.status(404).json({ error: `Product with ID ${id} not found` });
+    }
+
+    res.status(200).json({
+      message: 'Product retrieved successfully',
+      data: product
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to read product data' });
+  }
+});
+
+// PUT API - Update product details by ID
+app.put('/api/products/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'ID must be an integer' });
+    }
+
+    const { name, price, quantity } = req.body || {};
+    if (name === undefined && price === undefined && quantity === undefined) {
+      return res.status(400).json({
+        error: 'Provide at least one field to update: name, price, quantity'
+      });
+    }
+    if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+      return res.status(400).json({ error: 'Name cannot be empty' });
+    }
+
+    const numericPrice = price === undefined ? undefined : Number(price);
+    if (numericPrice !== undefined && (!Number.isFinite(numericPrice) || numericPrice < 0)) {
+      return res.status(400).json({ error: 'Price must be a non-negative number' });
+    }
+    const numericQuantity = quantity === undefined ? undefined : Number(quantity);
+    if (numericQuantity !== undefined && (!Number.isInteger(numericQuantity) || numericQuantity < 0)) {
+      return res.status(400).json({ error: 'Quantity must be a non-negative integer' });
+    }
+
+    const products = JSON.parse(fs.readFileSync(PRODUCTS_FILE, 'utf8'));
+    const index = products.findIndex((product) => product.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: `Product with ID ${id} not found` });
+    }
+
+    const product = products[index];
+    if (name !== undefined) product.name = name.trim();
+    if (numericPrice !== undefined) product.price = numericPrice;
+    if (numericQuantity !== undefined) product.quantity = numericQuantity;
+    product.updatedAt = new Date().toISOString();
+    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(products, null, 2));
+
+    res.status(200).json({
+      message: 'Product updated successfully',
+      data: product
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update product data' });
+  }
+});
+
+// DELETE API - Delete product by ID
+app.delete('/api/products/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'ID must be an integer' });
+    }
+
+    const products = JSON.parse(fs.readFileSync(PRODUCTS_FILE, 'utf8'));
+    const index = products.findIndex((product) => product.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: `Product with ID ${id} not found` });
+    }
+
+    const [deleted] = products.splice(index, 1);
+    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(products, null, 2));
+    res.status(200).json({
+      message: 'Product deleted successfully',
+      data: deleted
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete product data' });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'Server is running' });
@@ -205,4 +387,10 @@ app.listen(PORT, () => {
   console.log(`✓ GET /api/users/:id - Get user by ID`);
   console.log(`✓ PUT /api/users/:id - Update user by ID`);
   console.log(`✓ DELETE /api/users/:id - Delete user by ID`);
+  console.log(`✓ POST /api/products - Add new product`);
+  console.log(`✓ GET /api/products - Get all products`);
+  console.log(`✓ GET /api/products/ids - Get product IDs and details`);
+  console.log(`✓ GET /api/products/:id - Get product by ID`);
+  console.log(`✓ PUT /api/products/:id - Update product by ID`);
+  console.log(`✓ DELETE /api/products/:id - Delete product by ID`);
 });

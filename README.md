@@ -10,6 +10,12 @@ A simple Node.js backend with POST and GET APIs that save and retrieve user data
 - **GET /api/users/:id** - Retrieve one user's details by ID
 - **PUT /api/users/:id** - Update a user's name, age, and/or address
 - **DELETE /api/users/:id** - Delete a user by ID
+- **POST /api/products** - Add a product with name, price, and quantity
+- **GET /api/products** - Retrieve all products
+- **GET /api/products/ids** - Retrieve each product's ID and details
+- **GET /api/products/:id** - Retrieve one product by ID
+- **PUT /api/products/:id** - Update a product's name, price, and/or quantity
+- **DELETE /api/products/:id** - Delete a product by ID
 - **GET /health** - Health check endpoint
 
 ## Installation
@@ -166,6 +172,30 @@ Delete a user by ID. Returns the deleted record, `404` if not found, and `400` i
 }
 ```
 
+### POST /api/products
+Add a product. Name must be non-empty, price must be a non-negative number, and quantity must be a non-negative integer.
+
+**Request Body:**
+```json
+{
+  "name": "Keyboard",
+  "price": 49.99,
+  "quantity": 20
+}
+```
+
+### GET /api/products
+Retrieve all products. **GET /api/products/ids** returns each product's ID, name, price, and quantity without timestamps.
+
+### GET /api/products/:id
+Retrieve one product by ID. Returns `404` if it is not found and `400` if the ID isn't an integer.
+
+### PUT /api/products/:id
+Update any supplied `name`, `price`, and/or `quantity` fields. The same validation rules as product creation apply; returns `400` for invalid input or no fields, and `404` if the product isn't found.
+
+### DELETE /api/products/:id
+Delete a product by ID. Returns the deleted record, `404` if it isn't found, and `400` if the ID isn't an integer.
+
 ### GET /health
 Check if the server is running.
 
@@ -178,7 +208,7 @@ Check if the server is running.
 
 ## Data Storage
 
-User data is stored in `data.json` file in the root directory. The file is automatically created when the server starts.
+User data is stored in `data.json` and product data in `products.json`, both in the root directory. Each file is automatically created when the server starts.
 
 ## Testing with curl
 
@@ -204,6 +234,28 @@ curl -X PUT http://localhost:3000/api/users/1 \
 
 # Delete user
 curl -X DELETE http://localhost:3000/api/users/1
+
+# Add a product
+curl -X POST http://localhost:3000/api/products \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Keyboard","price":49.99,"quantity":20}'
+
+# Get all products
+curl http://localhost:3000/api/products
+
+# Get product IDs and details
+curl http://localhost:3000/api/products/ids
+
+# Get product by ID
+curl http://localhost:3000/api/products/1
+
+# Update product
+curl -X PUT http://localhost:3000/api/products/1 \
+  -H "Content-Type: application/json" \
+  -d '{"quantity":18}'
+
+# Delete product
+curl -X DELETE http://localhost:3000/api/products/1
 
 # Health check
 curl http://localhost:3000/health
